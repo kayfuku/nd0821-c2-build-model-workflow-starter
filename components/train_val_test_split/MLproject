@@ -4,7 +4,6 @@ conda_env: conda.yml
 entry_points:
   main:
     parameters:
-
       input:
         description: Artifact to split (a CSV file)
         type: string
@@ -21,6 +20,8 @@ entry_points:
       stratify_by:
         description: Column to use for stratification (if any)
         type: string
-        default: 'none'
+        default: "none"
 
-    command: "python run.py {input} {test_size} --random_seed {random_seed} --stratify_by {stratify_by}"
+    command: "python run.py {input} {test_size} \
+      --random_seed {random_seed} \
+      --stratify_by {stratify_by}"
