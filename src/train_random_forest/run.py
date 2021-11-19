@@ -81,16 +81,14 @@ def go(args):
 
     ######################################
     # Fit the pipeline sk_pipe by calling the .fit method on X_train and y_train
-    sk_pipe.fit(X_train[processed_features], y_train)
+    sk_pipe.fit(X_train, y_train)
     ######################################
 
     # Compute r2 and MAE
     logger.info("Scoring")
-    # Be aware that it's not just X_val but X_val[processed_features]
-    r_squared = sk_pipe.score(X_val[processed_features], y_val)
+    r_squared = sk_pipe.score(X_val, y_val)
 
-    # Be aware that it's not just X_val but X_val[processed_features
-    y_pred = sk_pipe.predict(X_val[processed_features])
+    y_pred = sk_pipe.predict(X_val)
     mae = mean_absolute_error(y_val, y_pred)
 
     logger.info(f"Score: {r_squared}")
@@ -102,13 +100,34 @@ def go(args):
     if os.path.exists("random_forest_dir"):
         shutil.rmtree("random_forest_dir")
 
+    export_model(run, X_val, y_pred, sk_pipe, rf_config, args)
+
+    # Plot feature importance
+    fig_feat_imp = plot_feature_importance(sk_pipe, processed_features)
+
+    ######################################
+    # Here we save r_squared under the "r2" key
+    run.summary['r2'] = r_squared
+    # Now log the variable "mae" under the key "mae".
+    run.summary['mae'] = mae
+    ######################################
+
+    # Upload to W&B the feture importance visualization
+    run.log(
+        {
+            "feature_importance": wandb.Image(fig_feat_imp),
+        }
+    )
+
+
+def export_model(run, X_val, y_pred, sk_pipe, rf_config, args):
     ######################################
     # Save the sk_pipe pipeline as a mlflow.sklearn model in the directory "random_forest_dir"
     # HINT: use mlflow.sklearn.save_model
 
     # Infer the signature of the model
     # Get the columns that we are really using from the pipeline
-    signature = infer_signature(X_val[processed_features], y_pred)
+    signature = infer_signature(X_val, y_pred)
 
     with tempfile.TemporaryDirectory() as temp_dir:
         export_path = os.path.join(temp_dir, "random_forest_dir")
@@ -131,6 +150,7 @@ def go(args):
             args.output_artifact,
             type="model_export",
             description="Random Forest pipeline export",
+            # You can see the variables on W&B in 'metadata' tab for a model_export.
             metadata=rf_config
         )
         artifact.add_dir(export_path)
@@ -139,23 +159,6 @@ def go(args):
         # Make sure the artifact is uploaded before the temp dir gets deleted
         artifact.wait()
     ######################################
-
-    # Plot feature importance
-    fig_feat_imp = plot_feature_importance(sk_pipe, processed_features)
-
-    ######################################
-    # Here we save r_squared under the "r2" key
-    run.summary['r2'] = r_squared
-    # Now log the variable "mae" under the key "mae".
-    run.summary['mae'] = mae
-    ######################################
-
-    # Upload to W&B the feture importance visualization
-    run.log(
-        {
-            "feature_importance": wandb.Image(fig_feat_imp),
-        }
-    )
 
 
 def plot_feature_importance(pipe, feat_names):
